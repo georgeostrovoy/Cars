@@ -15,7 +15,8 @@ export class Game {
     this.runner = Runner.create({ delta: 1000 / 120, isFixed: true });
 
     this.terrainBodies = [];
-    this.surfaceZones = [{ from: 0, to: 6000, color: '#6a4a2e', friction: 0.92, name: 'dirt' }];
+    this.terrainPoints = [];
+    this.surfaceZones = [{ from: 0, to: 8000, color: '#6a4a2e', friction: 0.92, name: 'dirt' }];
     this._buildTerrain();
     this.car = this._buildCar(200, 380);
     this.cameraX = 0;
@@ -53,18 +54,39 @@ export class Game {
 
   _buildTerrain() {
     const zone = this.surfaceZones[0];
-    for (let x = zone.from; x < zone.to; x += 80) {
-      const mid = x + 40;
-      const y = 530;
-      const ground = Bodies.rectangle(mid, y + 45, 80, 90, {
+    const step = 80;
+    for (let x = zone.from; x <= zone.to; x += step) {
+      this.terrainPoints.push({ x, y: this._groundY(x) });
+    }
+
+    for (let i = 0; i < this.terrainPoints.length - 1; i += 1) {
+      const a = this.terrainPoints[i];
+      const b = this.terrainPoints[i + 1];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const length = Math.hypot(dx, dy);
+      const angle = Math.atan2(dy, dx);
+      const midX = (a.x + b.x) * 0.5;
+      const midY = (a.y + b.y) * 0.5;
+
+      const ground = Bodies.rectangle(midX, midY + 48, length + 2, 100, {
         isStatic: true,
+        angle,
         friction: zone.friction,
         label: 'ground',
         renderColor: zone.color,
       });
       this.terrainBodies.push(ground);
     }
+
     World.add(this.world, this.terrainBodies);
+  }
+
+  _groundY(x) {
+    return 540
+      - Math.sin(x * 0.0045) * 26
+      - Math.sin(x * 0.0105) * 10
+      + Math.sin(x * 0.0017) * 18;
   }
 
   _stepControls() {
@@ -87,7 +109,8 @@ export class Game {
 
   _isGrounded() {
     const { leftWheel, rightWheel } = this.car;
-    return leftWheel.position.y > 500 || rightWheel.position.y > 500;
+    return leftWheel.position.y > this._groundY(leftWheel.position.x) - 6
+      || rightWheel.position.y > this._groundY(rightWheel.position.x) - 6;
   }
 
   _resetCar() {
@@ -119,14 +142,26 @@ export class Game {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.translate(-this.cameraX, 0);
-    for (const body of this.terrainBodies) {
-      ctx.fillStyle = body.renderColor ?? '#6a4a2e';
-      ctx.fillRect(body.position.x - 40, body.position.y - 45, 80, 90);
-    }
+
+    this._drawTerrain('#6a4a2e');
     this._drawBody(this.car.chassis, '#cc2b2b');
     this._drawCircle(this.car.leftWheel, '#1f1f1f');
     this._drawCircle(this.car.rightWheel, '#1f1f1f');
     ctx.restore();
+  }
+
+  _drawTerrain(color) {
+    const { ctx, canvas } = this;
+    if (this.terrainPoints.length < 2) return;
+
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(this.terrainPoints[0].x, canvas.height + 200);
+    for (const p of this.terrainPoints) ctx.lineTo(p.x, p.y);
+    const last = this.terrainPoints[this.terrainPoints.length - 1];
+    ctx.lineTo(last.x, canvas.height + 200);
+    ctx.closePath();
+    ctx.fill();
   }
 
   _drawBody(body, color) {

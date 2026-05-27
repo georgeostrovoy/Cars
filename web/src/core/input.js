@@ -1,42 +1,48 @@
 export class Input {
   constructor() {
     this.keys = new Set();
-    this.touch = { left: false, right: false, jump: false, reset: false };
+    this.touch = { left: false, right: false, jump: false };
+    this.resetQueued = false;
 
     addEventListener('keydown', (e) => this.keys.add(e.code));
     addEventListener('keyup', (e) => this.keys.delete(e.code));
 
-    this._bindTouchButton('btn-left', 'left');
-    this._bindTouchButton('btn-right', 'right');
-    this._bindTouchButton('btn-jump', 'jump');
-    this._bindTouchButton('btn-reset', 'reset', true);
+    this._bindHoldButton('btn-left', 'left');
+    this._bindHoldButton('btn-right', 'right');
+    this._bindHoldButton('btn-jump', 'jump');
+    this._bindTapButton('btn-reset', () => { this.resetQueued = true; });
   }
 
-  _bindTouchButton(id, action, oneShot = false) {
+  _bindHoldButton(id, action) {
     const btn = document.getElementById(id);
     if (!btn) return;
 
-    const press = (e) => {
+    const onDown = (e) => {
       e.preventDefault();
+      btn.setPointerCapture?.(e.pointerId);
       this.touch[action] = true;
     };
 
-    const release = (e) => {
+    const onUp = (e) => {
       e.preventDefault();
-      if (!oneShot) this.touch[action] = false;
+      this.touch[action] = false;
     };
 
-    btn.addEventListener('pointerdown', press);
-    btn.addEventListener('pointerup', release);
-    btn.addEventListener('pointerleave', release);
-    btn.addEventListener('pointercancel', release);
+    btn.addEventListener('pointerdown', onDown);
+    btn.addEventListener('pointerup', onUp);
+    btn.addEventListener('pointercancel', onUp);
+    btn.addEventListener('lostpointercapture', onUp);
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
 
-    if (oneShot) {
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.touch[action] = true;
-      });
-    }
+  _bindTapButton(id, cb) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      cb();
+    });
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
   axis() {
@@ -50,9 +56,8 @@ export class Input {
   }
 
   resetPressed() {
-    const keyboard = this.keys.has('KeyR');
-    const touchReset = this.touch.reset;
-    this.touch.reset = false;
-    return keyboard || touchReset;
+    const pressed = this.keys.has('KeyR') || this.resetQueued;
+    this.resetQueued = false;
+    return pressed;
   }
 }
