@@ -10,17 +10,24 @@ export class Game {
     this.input = new Input();
     this.surfaceEl = surfaceEl;
 
-    this.engine = Engine.create({ gravity: { x: 0, y: 1.2 } });
+    this.engine = Engine.create({ gravity: { x: 0, y: 1.2 }, enableSleeping: true });
     this.world = this.engine.world;
     this.runner = Runner.create({ delta: 1000 / 120, isFixed: true });
 
-    this.terrainBodies = [];
-    this.terrainPoints = [];
-    this.surfaceZones = [{ from: 0, to: 8000, color: '#6a4a2e', friction: 0.92, name: 'dirt' }];
-    this._buildTerrain();
+    this.segmentStep = 80;
+    this.segmentDepth = 100;
+    this.keepRange = 3000;
+    this.spawnAhead = 2200;
+    this.spawnBehind = 800;
+
+    this.terrainSegments = new Map();
+    this.terrainPoints = new Map();
+    this.surfaceZones = [{ color: '#6a4a2e', friction: 0.92, name: 'dirt' }];
+
     this.car = this._buildCar(200, 380);
     this.cameraX = 0;
 
+    this._extendTerrainAround(200);
     Events.on(this.runner, 'beforeUpdate', () => this._stepControls());
   }
 
@@ -30,56 +37,90 @@ export class Game {
   }
 
   loop() {
+    const focusX = this.car.chassis.position.x;
+    this._extendTerrainAround(focusX);
+    this._cleanupTerrain(focusX);
     this._updateHud();
     this.render();
     requestAnimationFrame(() => this.loop());
   }
 
   _buildCar(x, y) {
-    const chassis = Bodies.rectangle(x, y, 130, 36, { density: 0.0025, frictionAir: 0.02, restitution: 0.05, chamfer: { radius: 10 }, label: 'chassis' });
-    const wheelOptions = { density: 0.0035, friction: 1.0, restitution: 0.02, label: 'wheel' };
+    const chassis = Bodies.rectangle(x, y, 130, 36, {
+      density: 0.0025,
+      frictionAir: 0.03,
+      restitution: 0.03,
+      chamfer: { radius: 10 },
+      sleepThreshold: 45,
+      label: 'chassis',
+    });
+    const wheelOptions = {
+      density: 0.0035,
+      friction: 1.0,
+      restitution: 0.01,
+      frictionAir: 0.015,
+      sleepThreshold: 35,
+      label: 'wheel',
+    };
     const leftWheel = Bodies.circle(x - 42, y + 26, 19, wheelOptions);
     const rightWheel = Bodies.circle(x + 42, y + 26, 19, wheelOptions);
 
     const constraints = [
-      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 20 }, bodyB: leftWheel, stiffness: 0.65, damping: 0.2, length: 8 }),
-      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 20 }, bodyB: rightWheel, stiffness: 0.65, damping: 0.2, length: 8 }),
-      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 0 }, bodyB: leftWheel, stiffness: 0.35, damping: 0.25, length: 30 }),
-      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 0 }, bodyB: rightWheel, stiffness: 0.35, damping: 0.25, length: 30 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 20 }, bodyB: leftWheel, stiffness: 0.62, damping: 0.3, length: 8 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 20 }, bodyB: rightWheel, stiffness: 0.62, damping: 0.3, length: 8 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 0 }, bodyB: leftWheel, stiffness: 0.33, damping: 0.35, length: 30 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 0 }, bodyB: rightWheel, stiffness: 0.33, damping: 0.35, length: 30 }),
     ];
 
     World.add(this.world, [chassis, leftWheel, rightWheel, ...constraints]);
     return { chassis, leftWheel, rightWheel };
   }
 
-  _buildTerrain() {
-    const zone = this.surfaceZones[0];
-    const step = 80;
-    for (let x = zone.from; x <= zone.to; x += step) {
-      this.terrainPoints.push({ x, y: this._groundY(x) });
-    }
+  _extendTerrainAround(centerX) {
+    const minX = this._snapX(centerX - this.spawnBehind);
+    const maxX = this._snapX(centerX + this.spawnAhead);
 
-    for (let i = 0; i < this.terrainPoints.length - 1; i += 1) {
-      const a = this.terrainPoints[i];
-      const b = this.terrainPoints[i + 1];
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
+    for (let x = minX; x <= maxX; x += this.segmentStep) {
+      if (this.terrainSegments.has(x)) continue;
+
+      const aX = x;
+      const bX = x + this.segmentStep;
+      const aY = this._groundY(aX);
+      const bY = this._groundY(bX);
+      this.terrainPoints.set(aX, aY);
+      this.terrainPoints.set(bX, bY);
+
+      const dx = bX - aX;
+      const dy = bY - aY;
       const length = Math.hypot(dx, dy);
       const angle = Math.atan2(dy, dx);
-      const midX = (a.x + b.x) * 0.5;
-      const midY = (a.y + b.y) * 0.5;
+      const midX = (aX + bX) * 0.5;
+      const midY = (aY + bY) * 0.5;
+      const zone = this.surfaceZones[0];
 
-      const ground = Bodies.rectangle(midX, midY + 48, length + 2, 100, {
+      const ground = Bodies.rectangle(midX, midY + 48, length + 2, this.segmentDepth, {
         isStatic: true,
         angle,
         friction: zone.friction,
         label: 'ground',
         renderColor: zone.color,
       });
-      this.terrainBodies.push(ground);
-    }
 
-    World.add(this.world, this.terrainBodies);
+      this.terrainSegments.set(x, ground);
+      World.add(this.world, ground);
+    }
+  }
+
+  _cleanupTerrain(centerX) {
+    const minKeep = centerX - this.keepRange;
+    const maxKeep = centerX + this.keepRange;
+
+    for (const [x, body] of this.terrainSegments) {
+      if (x < minKeep || x > maxKeep) {
+        World.remove(this.world, body);
+        this.terrainSegments.delete(x);
+      }
+    }
   }
 
   _groundY(x) {
@@ -89,11 +130,15 @@ export class Game {
       + Math.sin(x * 0.0017) * 18;
   }
 
+  _snapX(x) {
+    return Math.floor(x / this.segmentStep) * this.segmentStep;
+  }
+
   _stepControls() {
     const axis = this.input.axis();
     const { chassis, leftWheel, rightWheel } = this.car;
-    const zone = this._surfaceForX(chassis.position.x);
-    const traction = zone?.friction ?? 0.9;
+    const zone = this.surfaceZones[0];
+    const traction = zone.friction;
 
     if (axis !== 0) {
       const torque = 0.0038 * traction;
@@ -127,13 +172,8 @@ export class Game {
     Body.setAngularVelocity(rightWheel, 0);
   }
 
-  _surfaceForX(x) {
-    return this.surfaceZones.find((z) => x >= z.from && x < z.to) ?? this.surfaceZones[0];
-  }
-
   _updateHud() {
-    const zone = this._surfaceForX(this.car.chassis.position.x);
-    this.surfaceEl.textContent = `Surface: ${zone?.name ?? 'dirt'}`;
+    this.surfaceEl.textContent = 'Surface: dirt';
   }
 
   render() {
@@ -152,14 +192,18 @@ export class Game {
 
   _drawTerrain(color) {
     const { ctx, canvas } = this;
-    if (this.terrainPoints.length < 2) return;
+    const sortedX = [...this.terrainPoints.keys()].sort((a, b) => a - b);
+    if (sortedX.length < 2) return;
 
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.moveTo(this.terrainPoints[0].x, canvas.height + 200);
-    for (const p of this.terrainPoints) ctx.lineTo(p.x, p.y);
-    const last = this.terrainPoints[this.terrainPoints.length - 1];
-    ctx.lineTo(last.x, canvas.height + 200);
+    const firstX = sortedX[0];
+    ctx.moveTo(firstX, canvas.height + 200);
+    for (const x of sortedX) {
+      ctx.lineTo(x, this.terrainPoints.get(x));
+    }
+    const lastX = sortedX[sortedX.length - 1];
+    ctx.lineTo(lastX, canvas.height + 200);
     ctx.closePath();
     ctx.fill();
   }
