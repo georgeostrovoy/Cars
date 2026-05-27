@@ -11,6 +11,8 @@ export class Game {
     this.surfaceEl = surfaceEl;
 
     this.engine = Engine.create({ gravity: { x: 0, y: 1.2 }, enableSleeping: true });
+    this.engine.positionIterations = 8;
+    this.engine.velocityIterations = 7;
     this.world = this.engine.world;
     this.runner = Runner.create({ delta: 1000 / 120, isFixed: true });
 
@@ -47,29 +49,29 @@ export class Game {
 
   _buildCar(x, y) {
     const chassis = Bodies.rectangle(x, y, 130, 36, {
-      density: 0.0025,
-      frictionAir: 0.03,
-      restitution: 0.03,
+      density: 0.0029,
+      frictionAir: 0.05,
+      restitution: 0.0,
       chamfer: { radius: 10 },
-      sleepThreshold: 45,
+      sleepThreshold: 55,
       label: 'chassis',
     });
     const wheelOptions = {
-      density: 0.0035,
+      density: 0.0038,
       friction: 1.0,
-      restitution: 0.01,
-      frictionAir: 0.015,
-      sleepThreshold: 35,
+      restitution: 0.0,
+      frictionAir: 0.03,
+      sleepThreshold: 48,
       label: 'wheel',
     };
     const leftWheel = Bodies.circle(x - 42, y + 26, 19, wheelOptions);
     const rightWheel = Bodies.circle(x + 42, y + 26, 19, wheelOptions);
 
     const constraints = [
-      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 20 }, bodyB: leftWheel, stiffness: 0.62, damping: 0.3, length: 8 }),
-      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 20 }, bodyB: rightWheel, stiffness: 0.62, damping: 0.3, length: 8 }),
-      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 0 }, bodyB: leftWheel, stiffness: 0.33, damping: 0.35, length: 30 }),
-      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 0 }, bodyB: rightWheel, stiffness: 0.33, damping: 0.35, length: 30 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 20 }, bodyB: leftWheel, stiffness: 0.58, damping: 0.5, length: 8 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 20 }, bodyB: rightWheel, stiffness: 0.58, damping: 0.5, length: 8 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 0 }, bodyB: leftWheel, stiffness: 0.28, damping: 0.6, length: 30 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 0 }, bodyB: rightWheel, stiffness: 0.28, damping: 0.6, length: 30 }),
     ];
 
     World.add(this.world, [chassis, leftWheel, rightWheel, ...constraints]);
@@ -125,9 +127,9 @@ export class Game {
 
   _groundY(x) {
     return 540
-      - Math.sin(x * 0.0045) * 26
-      - Math.sin(x * 0.0105) * 10
-      + Math.sin(x * 0.0017) * 18;
+      - Math.sin(x * 0.0042) * 46
+      - Math.sin(x * 0.0098) * 18
+      + Math.sin(x * 0.0017) * 24;
   }
 
   _snapX(x) {
@@ -139,16 +141,26 @@ export class Game {
     const { chassis, leftWheel, rightWheel } = this.car;
     const zone = this.surfaceZones[0];
     const traction = zone.friction;
+    const groundAhead = this._groundY(chassis.position.x + 45);
+    const groundBehind = this._groundY(chassis.position.x - 45);
+    const slopeAngle = Math.atan2(groundAhead - groundBehind, 90);
 
     if (axis !== 0) {
       const torque = 0.0038 * traction;
       Body.setAngularVelocity(leftWheel, leftWheel.angularVelocity + axis * torque);
       Body.setAngularVelocity(rightWheel, rightWheel.angularVelocity + axis * torque);
-      Body.applyForce(chassis, chassis.position, { x: axis * 0.00055 * traction, y: 0 });
+      Body.applyForce(chassis, chassis.position, { x: axis * 0.00046 * traction, y: 0 });
     }
 
-    if (this.input.jumpPressed() && this._isGrounded()) Body.applyForce(chassis, chassis.position, { x: 0, y: -0.04 });
-    if (!this._isGrounded() && axis !== 0) Body.setAngularVelocity(chassis, chassis.angularVelocity + axis * 0.007);
+    if (this.input.jumpPressed() && this._isGrounded()) Body.applyForce(chassis, chassis.position, { x: 0, y: -0.038 });
+
+    // anti-flip stabilization on throttle/brake
+    const angleError = slopeAngle - chassis.angle;
+    const angVel = chassis.angularVelocity;
+    const stabilize = (axis !== 0 && this._isGrounded()) ? 0.0028 : 0.0011;
+    Body.setAngularVelocity(chassis, angVel + angleError * stabilize - angVel * 0.025);
+
+    if (!this._isGrounded() && axis !== 0) Body.setAngularVelocity(chassis, chassis.angularVelocity + axis * 0.0045);
     if (this.input.resetPressed()) this._resetCar();
   }
 
