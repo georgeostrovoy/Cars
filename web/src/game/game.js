@@ -11,18 +11,28 @@ export class Game {
     this.car = new Car();
     this.surfaceEl = surfaceEl;
     this.last = performance.now();
+    this.accumulator = 0;
+    this.fixedDt = 1 / 120;
+    this.maxFrame = 1 / 20;
   }
 
-  start() { requestAnimationFrame((t) => this.loop(t)); }
+  start() {
+    requestAnimationFrame((t) => this.loop(t));
+  }
 
   loop(t) {
-    const dt = Math.min(0.033, (t - this.last) / 1000);
+    const frameDt = Math.min(this.maxFrame, (t - this.last) / 1000);
     this.last = t;
+    this.accumulator += frameDt;
 
     if (this.input.resetPressed()) this.car.reset();
-    this.car.update(this.input, dt, groundY);
-    this.surfaceEl.textContent = `Surface: ${this.car.surface}`;
 
+    while (this.accumulator >= this.fixedDt) {
+      this.car.update(this.input, this.fixedDt, groundY);
+      this.accumulator -= this.fixedDt;
+    }
+
+    this.surfaceEl.textContent = `Surface: ${this.car.surface}`;
     this.render();
     requestAnimationFrame((n) => this.loop(n));
   }
