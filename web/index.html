@@ -12,7 +12,16 @@
     <p>A/D - drive | Space - jump | R - reset</p>
     <p id="surface">Surface: dirt</p>
   </div>
+
   <canvas id="game" width="1280" height="720"></canvas>
+
+  <div id="touch-controls" aria-label="Touch controls">
+    <button id="btn-left" class="pedal">◀</button>
+    <button id="btn-jump" class="pedal">⤒</button>
+    <button id="btn-right" class="pedal">▶</button>
+    <button id="btn-reset" class="pedal pedal-small">R</button>
+  </div>
+
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>
