@@ -58,20 +58,22 @@ export class Game {
     });
     const wheelOptions = {
       density: 0.0038,
-      friction: 1.0,
+      friction: 1.15,
+      frictionStatic: 1.8,
       restitution: 0.0,
-      frictionAir: 0.03,
-      sleepThreshold: 48,
+      frictionAir: 0.018,
+      inertia: 0.9,
+      sleepThreshold: 20,
       label: 'wheel',
     };
     const leftWheel = Bodies.circle(x - 42, y + 26, 19, wheelOptions);
     const rightWheel = Bodies.circle(x + 42, y + 26, 19, wheelOptions);
 
     const constraints = [
-      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 20 }, bodyB: leftWheel, stiffness: 0.58, damping: 0.5, length: 8 }),
-      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 20 }, bodyB: rightWheel, stiffness: 0.58, damping: 0.5, length: 8 }),
-      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 0 }, bodyB: leftWheel, stiffness: 0.28, damping: 0.6, length: 30 }),
-      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 0 }, bodyB: rightWheel, stiffness: 0.28, damping: 0.6, length: 30 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 18 }, bodyB: leftWheel, stiffness: 0.34, damping: 0.82, length: 9 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 18 }, bodyB: rightWheel, stiffness: 0.34, damping: 0.82, length: 9 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: -42, y: 2 }, bodyB: leftWheel, stiffness: 0.12, damping: 0.9, length: 29 }),
+      Constraint.create({ bodyA: chassis, pointA: { x: 42, y: 2 }, bodyB: rightWheel, stiffness: 0.12, damping: 0.9, length: 29 }),
     ];
 
     World.add(this.world, [chassis, leftWheel, rightWheel, ...constraints]);
@@ -146,11 +148,19 @@ export class Game {
     const slopeAngle = Math.atan2(groundAhead - groundBehind, 90);
 
     if (axis !== 0) {
-      const torque = 0.0038 * traction;
-      Body.setAngularVelocity(leftWheel, leftWheel.angularVelocity + axis * torque);
-      Body.setAngularVelocity(rightWheel, rightWheel.angularVelocity + axis * torque);
-      Body.applyForce(chassis, chassis.position, { x: axis * 0.00046 * traction, y: 0 });
+      // Apply torque instead of overwriting angular velocity so contact friction
+      // can turn the wheels and the solver can keep the car settled.
+      const torque = axis * 0.0022 * traction;
+      Body.setAwake(leftWheel, true);
+      Body.setAwake(rightWheel, true);
+      Body.applyTorque(leftWheel, torque);
+      Body.applyTorque(rightWheel, torque);
+      Body.applyForce(chassis, chassis.position, { x: axis * 0.00034 * traction, y: 0 });
     }
+
+    // Keep wheel spin finite and let the ground solver damp small contact jitter.
+    Body.setAngularVelocity(leftWheel, leftWheel.angularVelocity * 0.995);
+    Body.setAngularVelocity(rightWheel, rightWheel.angularVelocity * 0.995);
 
     if (this.input.jumpPressed() && this._isGrounded()) Body.applyForce(chassis, chassis.position, { x: 0, y: -0.038 });
 
