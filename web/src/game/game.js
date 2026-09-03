@@ -158,19 +158,18 @@ export class Game {
       Body.applyForce(chassis, chassis.position, { x: axis * 0.00034 * traction, y: 0 });
     }
 
-    // Keep wheel spin finite and let the ground solver damp small contact jitter.
-    Body.setAngularVelocity(leftWheel, leftWheel.angularVelocity * 0.995);
-    Body.setAngularVelocity(rightWheel, rightWheel.angularVelocity * 0.995);
-
     if (this.input.jumpPressed() && this._isGrounded()) Body.applyForce(chassis, chassis.position, { x: 0, y: -0.038 });
 
-    // anti-flip stabilization on throttle/brake
-    const angleError = slopeAngle - chassis.angle;
-    const angVel = chassis.angularVelocity;
-    const stabilize = (axis !== 0 && this._isGrounded()) ? 0.0028 : 0.0011;
-    Body.setAngularVelocity(chassis, angVel + angleError * stabilize - angVel * 0.025);
+    // Only stabilize after a real control input. Applying a correction every
+    // frame was injecting energy into the chassis while the car was idle.
+    if (axis !== 0 && this._isGrounded()) {
+      const angleError = slopeAngle - chassis.angle;
+      const correction = Math.max(-0.012, Math.min(0.012, angleError * 0.0018));
+      Body.applyTorque(chassis, correction - chassis.angularVelocity * 0.0008);
+    } else if (this._isGrounded()) {
+      Body.applyTorque(chassis, -chassis.angularVelocity * 0.0012);
+    }
 
-    if (!this._isGrounded() && axis !== 0) Body.setAngularVelocity(chassis, chassis.angularVelocity + axis * 0.0045);
     if (this.input.resetPressed()) this._resetCar();
   }
 
