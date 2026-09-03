@@ -1,0 +1,38 @@
+* { box-sizing: border-box; }
+body { margin: 0; background: #111; color: #f3f3f3; font-family: Arial, sans-serif; overflow: hidden; }
+#hud { position: fixed; left: 16px; top: 8px; z-index: 2; }
+#hud h1 { margin: 0 0 8px; font-size: 18px; }
+#hud p { margin: 2px 0; font-size: 14px; }
+#game { display: block; margin: 0 auto; background: linear-gradient(#7ec0ff 0%, #d2eeff 60%, #9ad67b 60%, #6ca557 100%); }
+
+#touch-controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.pedal {
+  pointer-events: auto;
+  width: 84px;
+  height: 84px;
+  border-radius: 18px;
+  border: 2px solid rgba(255,255,255,0.5);
+  background: rgba(20,20,20,0.45);
+  color: #fff;
+  font-size: 34px;
+  font-weight: 700;
+  touch-action: none;
+}
+
+.pedal-small {
+  width: 64px;
+  height: 64px;
+  font-size: 24px;
+  margin-left: 8px;
+}
