@@ -153,8 +153,8 @@ export class Game {
       const torque = axis * 0.0022 * traction;
       leftWheel.isSleeping = false;
       rightWheel.isSleeping = false;
-      Body.applyTorque(leftWheel, torque);
-      Body.applyTorque(rightWheel, torque);
+      leftWheel.torque += torque;
+      rightWheel.torque += torque;
       Body.applyForce(chassis, chassis.position, { x: axis * 0.00034 * traction, y: 0 });
     }
 
@@ -165,9 +165,9 @@ export class Game {
     if (axis !== 0 && this._isGrounded()) {
       const angleError = slopeAngle - chassis.angle;
       const correction = Math.max(-0.012, Math.min(0.012, angleError * 0.0018));
-      Body.applyTorque(chassis, correction - chassis.angularVelocity * 0.0008);
+      chassis.torque += correction - chassis.angularVelocity * 0.0008;
     } else if (this._isGrounded()) {
-      Body.applyTorque(chassis, -chassis.angularVelocity * 0.0012);
+      chassis.torque += -chassis.angularVelocity * 0.0012;
     }
 
     if (this.input.resetPressed()) this._resetCar();
