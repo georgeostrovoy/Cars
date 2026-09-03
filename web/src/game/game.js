@@ -151,8 +151,8 @@ export class Game {
       // Apply torque instead of overwriting angular velocity so contact friction
       // can turn the wheels and the solver can keep the car settled.
       const torque = axis * 0.0022 * traction;
-      Body.setAwake(leftWheel, true);
-      Body.setAwake(rightWheel, true);
+      leftWheel.isSleeping = false;
+      rightWheel.isSleeping = false;
       Body.applyTorque(leftWheel, torque);
       Body.applyTorque(rightWheel, torque);
       Body.applyForce(chassis, chassis.position, { x: axis * 0.00034 * traction, y: 0 });
